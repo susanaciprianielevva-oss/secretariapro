@@ -20,24 +20,14 @@ window.OneSignalDeferred = window.OneSignalDeferred || [];
 </script>
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script>
-OneSignalDeferred.push(async function(OneSignal) {
-  try {
-    await OneSignal.init({
-      appId: "4bcccd2c-f311-4a43-b30d-8e669264136c",
-      notifyButton: { enable: false },
-    });
-  } catch(e) { console.log('OneSignal error:', e); }
-});
-</script>
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function(OneSignal) {
     try {
       await OneSignal.init({
         appId: "4bcccd2c-f311-4a43-b30d-8e669264136c",
+        serviceWorkerPath: "/secretariapro/OneSignalSDKWorker.js",
+        serviceWorkerParam: { scope: "/secretariapro/" },
         notifyButton: { enable: false },
-        allowLocalhostAsSecureOrigin: true,
       });
     } catch(e) { console.log('OneSignal error:', e); }
   });
@@ -1365,7 +1355,7 @@ async function sendOneSignalPush(title, message, targetRole) {
         filters: [{ field:'tag', key:'role', relation:'=', value: targetRole }],
         headings: { en: title, pt: title },
         contents: { en: message, pt: message },
-        url: 'https://seretariapro.netlify.app'
+        url: 'https://susanaciprianielevva-oss.github.io/secretariapro'
       })
     });
   } catch(e) { console.log('Push error:', e); }
