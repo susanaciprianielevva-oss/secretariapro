@@ -9,13 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Secretária em Dia">
 <title>Secretária em Dia — SecretariaPro</title>
 <script>
-// Cria o Service Worker do OneSignal dinamicamente sem precisar de arquivo externo
-if ('serviceWorker' in navigator) {
-  const swContent = `importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js");`;
-  const blob = new Blob([swContent], {type: 'application/javascript'});
-  const swUrl = URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl, {scope: '/'}).catch(e => console.log('SW:', e));
-}
+// O OneSignal registra o próprio service worker (via serviceWorkerPath no init).
 window.OneSignalDeferred = window.OneSignalDeferred || [];
 </script>
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
@@ -337,6 +331,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--gray-50);color:var(--gray
         <div class="nav-item" onclick="navigate('chame')" id="nav-chame"><span class="icon">🔔</span> Chame na Sala</div>
         <div class="nav-item" onclick="navigate('chat')" id="nav-chat"><span class="icon">💬</span> Chat da Equipe</div>
         <div class="nav-item" onclick="navigate('materiais')" id="nav-materiais"><span class="icon">📦</span> Materiais</div>
+        <div class="nav-item" onclick="navigate('protocolos')" id="nav-protocolos"><span class="icon">📋</span> Protocolos</div>
+        <div class="nav-item" onclick="navigate('treinamento')" id="nav-treinamento"><span class="icon">🎓</span> Treinamento</div>
       </div>
       <div class="nav-section" id="nav-admin-section" style="display:none">
         <div class="nav-label">Administração</div>
@@ -557,6 +553,93 @@ body{font-family:'DM Sans',sans-serif;background:var(--gray-50);color:var(--gray
             <button class="btn btn-sm btn-secondary" onclick="filterMateriais('ok',this)">✅ OK</button>
           </div>
           <div id="materiais-list"><div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Nenhum material cadastrado</div></div></div>
+        </div>
+      </div>
+      <div id="page-protocolos" style="display:none">
+        <div class="card" id="protocolo-admin-form" style="display:none">
+          <div class="card-header">
+            <div class="card-title"><span>📋</span> <span id="protocolo-form-title">Novo Protocolo</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div>
+              <label class="form-label">Categoria</label>
+              <input class="form-input" id="protocolo-categoria" placeholder="Ex: Implante, Esterilização, Recepção…" list="protocolo-categorias-existentes" autocomplete="off">
+              <datalist id="protocolo-categorias-existentes"></datalist>
+            </div>
+            <div>
+              <label class="form-label">Título do protocolo</label>
+              <input class="form-input" id="protocolo-titulo" placeholder="Ex: Preparar sala para implante">
+            </div>
+            <div>
+              <label class="form-label">Passos (um por linha)</label>
+              <textarea class="form-input" id="protocolo-passos" rows="6" placeholder="Higienizar a bancada&#10;Separar o kit de implante&#10;Conferir motor e contra-ângulo&#10;Posicionar os instrumentais na ordem de uso"></textarea>
+            </div>
+            <div>
+              <label class="form-label">Foto da mesa pronta (opcional)</label>
+              <input type="file" id="protocolo-foto-input" accept="image/*" style="display:none" onchange="onProtocoloFotoSelected(event)">
+              <div id="protocolo-foto-preview" style="display:none;margin-bottom:8px">
+                <img id="protocolo-foto-img" alt="Prévia da foto da mesa" style="max-width:100%;border-radius:10px;border:1px solid var(--gray-200,#eee);display:block">
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-secondary" type="button" onclick="document.getElementById('protocolo-foto-input').click()">📷 Adicionar/trocar foto</button>
+                <button class="btn btn-secondary" type="button" id="protocolo-foto-remove" style="display:none" onclick="removeProtocoloFoto()">Remover foto</button>
+              </div>
+              <div id="protocolo-foto-status" style="font-size:12.5px;color:var(--gray-500);margin-top:6px"></div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" onclick="saveProtocolo()"><span id="protocolo-save-label">Adicionar Protocolo</span></button>
+              <button class="btn btn-secondary" id="protocolo-cancel-btn" style="display:none" onclick="cancelEditProtocolo()">Cancelar edição</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span>📖</span> Protocolos da Clínica</div>
+          </div>
+          <p style="font-size:13.5px;color:var(--gray-700);margin-bottom:16px" id="protocolo-intro">Consulte os protocolos da clínica. Toque no título de um protocolo para ver os passos.</p>
+          <div id="protocolos-list"><div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Nenhum protocolo cadastrado ainda</div></div></div>
+        </div>
+      </div>
+      <div id="page-treinamento" style="display:none">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span>🎓</span> <span id="treino-progress-title">Progresso do treinamento</span></div>
+            <button class="btn btn-secondary btn-sm" id="treino-reset-btn" style="display:none" onclick="resetTreinoProgresso()">Reiniciar progresso</button>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--gray-700);margin-bottom:6px">
+            <span id="treino-progress-label">0 de 0 concluídos</span>
+            <span id="treino-progress-pct">0%</span>
+          </div>
+          <div style="background:var(--gray-100,#eee);border-radius:99px;height:12px;overflow:hidden">
+            <div id="treino-progress-bar" style="height:100%;width:0%;background:var(--gold,#c9a96e);border-radius:99px;transition:width .4s"></div>
+          </div>
+        </div>
+        <div class="card" id="treino-admin-form" style="display:none">
+          <div class="card-header">
+            <div class="card-title"><span>➕</span> <span id="treino-form-title">Novo item de treinamento</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div>
+              <label class="form-label">Etapa / categoria</label>
+              <input class="form-input" id="treino-categoria" placeholder="Ex: Primeiros dias, Biossegurança, Procedimentos…" list="treino-categorias-existentes" autocomplete="off">
+              <datalist id="treino-categorias-existentes"></datalist>
+            </div>
+            <div>
+              <label class="form-label">O que a auxiliar deve aprender</label>
+              <input class="form-input" id="treino-titulo" placeholder="Ex: Reprocessamento e esterilização de instrumentais">
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" onclick="saveTreino()"><span id="treino-save-label">Adicionar item</span></button>
+              <button class="btn btn-secondary" id="treino-cancel-btn" style="display:none" onclick="cancelEditTreino()">Cancelar edição</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title"><span>📋</span> Itens do treinamento</div>
+          </div>
+          <p style="font-size:13.5px;color:var(--gray-700);margin-bottom:16px" id="treino-intro">Marque cada item como aprendido conforme for dominando.</p>
+          <div id="treino-list"><div class="empty-state"><div class="empty-icon">🎓</div><div class="empty-text">Nenhum item de treinamento ainda</div></div></div>
         </div>
       </div>
       <div id="page-settings" style="display:none">
@@ -785,9 +868,9 @@ const USER_PROFILES = {
 
 // Páginas permitidas por perfil (controle de acesso do menu)
 const ROLE_PAGES = {
-  admin:      ['dashboard','checklist','chame','chat','materiais','admin','settings'],
-  secretaria: ['dashboard','checklist','chame','chat','materiais','settings'],
-  auxiliar:   ['dashboard','checklist','chame','chat','materiais','settings'],
+  admin:      ['dashboard','checklist','chame','chat','materiais','protocolos','treinamento','admin','settings'],
+  secretaria: ['dashboard','checklist','chame','chat','materiais','protocolos','settings'],
+  auxiliar:   ['dashboard','checklist','chame','chat','materiais','protocolos','treinamento','settings'],
   dentista:   ['chame','chat','materiais'],
   dentista2:  ['chame','chat','materiais']
 };
@@ -847,22 +930,38 @@ async function initApp() {
   document.getElementById('nav-role').textContent = currentProfile.roleLabel;
   document.getElementById('nav-avatar').textContent = currentProfile.avatar;
   document.getElementById('settings-user-name').textContent = currentProfile.name;
-  if (currentProfile.role==='admin') document.getElementById('nav-admin-section').style.display='block';
-  // Equipe (secretária/auxiliar) não cria tarefas — só o admin delega
-  if (currentProfile.role!=='admin') {
-    const addBtn = document.getElementById('btn-add-personal-task');
-    if (addBtn) addBtn.style.display='none';
-  }
+  const isAdmin = currentProfile.role==='admin';
+  const canCallSecretaria = ['admin','dentista','dentista2'].includes(currentProfile.role);
+  // Painel Admin: apenas admin (esconde de volta ao trocar de perfil)
+  document.getElementById('nav-admin-section').style.display = isAdmin ? 'block' : 'none';
+  // Botão "Nova Tarefa" pessoal: apenas admin
+  const addBtn = document.getElementById('btn-add-personal-task');
+  if (addBtn) addBtn.style.display = isAdmin ? '' : 'none';
   // Menu por perfil: mostra só as páginas permitidas
   const allowedPages = ROLE_PAGES[currentProfile.role] || ROLE_PAGES.secretaria;
-  [['dashboard','nav-dashboard'],['checklist','nav-checklist'],['chame','nav-chame'],['chat','nav-chat'],['materiais','nav-materiais']].forEach(([pg,id])=>{
+  [['dashboard','nav-dashboard'],['checklist','nav-checklist'],['chame','nav-chame'],['chat','nav-chat'],['materiais','nav-materiais'],['protocolos','nav-protocolos'],['treinamento','nav-treinamento']].forEach(([pg,id])=>{
     const e=document.getElementById(id); if(e) e.style.display = allowedPages.includes(pg) ? '' : 'none';
   });
   const setSec = document.getElementById('nav-settings-section');
   if(setSec) setSec.style.display = allowedPages.includes('settings') ? '' : 'none';
-  // Admin e dentistas podem chamar tanto o auxiliar quanto a secretária
-  if(['admin','dentista','dentista2'].includes(currentProfile.role))
-    document.getElementById('chame-btn-secretaria').style.display='block';
+  // Chamar a secretária: apenas admin e dentistas
+  const btnSec = document.getElementById('chame-btn-secretaria');
+  if (btnSec) btnSec.style.display = canCallSecretaria ? 'block' : 'none';
+  // Criação/edição de protocolos: apenas admin (equipe só consulta)
+  const pf = document.getElementById('protocolo-admin-form');
+  if (pf) pf.style.display = isAdmin ? '' : 'none';
+  const pi = document.getElementById('protocolo-intro');
+  if (pi) pi.textContent = isAdmin
+    ? 'Crie e edite os protocolos da clínica. A equipe pode consultá-los na tela deles.'
+    : 'Consulte os protocolos da clínica. Toque no título de um protocolo para ver os passos.';
+  // Card de admin nas Configurações (nomes da equipe): apenas admin
+  const admSec = document.getElementById('settings-admin-section');
+  if (admSec) admSec.style.display = isAdmin ? 'block' : 'none';
+  // Treinamento: só o admin cria itens e reinicia o progresso; a auxiliar marca o que aprendeu
+  const trainForm = document.getElementById('treino-admin-form');
+  if (trainForm) trainForm.style.display = isAdmin ? '' : 'none';
+  const trainReset = document.getElementById('treino-reset-btn');
+  if (trainReset) trainReset.style.display = isAdmin ? '' : 'none';
   startClock();
   renderReminders();
   checkNotifPermission();
@@ -878,6 +977,10 @@ async function initApp() {
     try { subscribeToNotifications(); } catch(e) { console.log('notifs:',e); }
     try { subscribeToChat(); } catch(e) { console.log('chat:',e); }
     try { subscribeToMateriais(); } catch(e) { console.log('materiais:',e); }
+    try { subscribeToProtocolos(); } catch(e) { console.log('protocolos:',e); }
+    try { await seedDefaultProtocolos(); } catch(e) { console.log('seedProtocolos:',e); }
+    try { subscribeToTreino(); } catch(e) { console.log('treino:',e); }
+    try { await seedDefaultTreino(); } catch(e) { console.log('seedTreino:',e); }
     try { registerOneSignalTag(); } catch(e) { console.log('onesignal:',e); }
   }, 100);
 }
@@ -1349,7 +1452,7 @@ window.navigate = function(page) {
     const allowed = ROLE_PAGES[currentProfile.role] || ROLE_PAGES.secretaria;
     if(!allowed.includes(page)) page = allowed[0];
   }
-  ['dashboard','checklist','chame','chat','materiais','admin','settings'].forEach(p=>{
+  ['dashboard','checklist','chame','chat','materiais','protocolos','treinamento','admin','settings'].forEach(p=>{
     document.getElementById('page-'+p).style.display=p===page?'block':'none';
     const n=document.getElementById('nav-'+p);
     if(n) n.classList.toggle('active',p===page);
@@ -1404,7 +1507,15 @@ async function sendOneSignalPush(title, message, targetRole) {
 }
 
 function registerOneSignalTag() {
-  // OneSignal temporariamente desativado
+  // Marca o usuário com o perfil (role) para o "Chame na Sala" saber quem notificar
+  if (!currentProfile || !currentProfile.role) return;
+  try {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      try { await OneSignal.User.addTag('role', currentProfile.role); }
+      catch(e) { console.log('OneSignal addTag error:', e); }
+    });
+  } catch(e) { console.log('registerOneSignalTag error:', e); }
 }
 let chatUnsub = null;
 let materiaisUnsub = null;
@@ -1539,6 +1650,444 @@ window.filterMateriais = function(filter, btn) {
   if(window._materiais) renderMateriais(window._materiais);
 };
 
+// ── PROTOCOLOS ────────────────────────────────────────────────
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+let protocolosUnsub = null;
+let editingProtocoloId = null;
+let currentProtocoloFoto = null;
+
+// Comprime a imagem no próprio celular antes de salvar (reduz tamanho e dimensão)
+function _compressToDataUrl(file, maxDim, quality){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let w = img.width, h = img.height;
+        if(w >= h && w > maxDim){ h = Math.round(h*maxDim/w); w = maxDim; }
+        else if(h > w && h > maxDim){ w = Math.round(w*maxDim/h); h = maxDim; }
+        else if(w === h && w > maxDim){ w = maxDim; h = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Reduz progressivamente até caber com folga no limite do Firestore (1MB por documento)
+async function compressImageToLimit(file, maxChars=700000){
+  const tentativas = [[1200,0.6],[1000,0.5],[800,0.45],[640,0.4]];
+  for(const [dim,q] of tentativas){
+    const url = await _compressToDataUrl(file, dim, q);
+    if(url.length <= maxChars) return url;
+  }
+  return await _compressToDataUrl(file, 520, 0.35);
+}
+
+function showProtocoloFotoPreview(dataUrl){
+  const prev = document.getElementById('protocolo-foto-preview');
+  const img  = document.getElementById('protocolo-foto-img');
+  const rem  = document.getElementById('protocolo-foto-remove');
+  if(!prev||!img||!rem) return;
+  if(dataUrl){ img.src = dataUrl; prev.style.display=''; rem.style.display=''; }
+  else { img.removeAttribute('src'); prev.style.display='none'; rem.style.display='none'; }
+}
+
+window.onProtocoloFotoSelected = async function(ev){
+  const file = ev.target.files && ev.target.files[0];
+  if(!file) return;
+  const status = document.getElementById('protocolo-foto-status');
+  if(status) status.textContent = 'Processando a imagem…';
+  try{
+    currentProtocoloFoto = await compressImageToLimit(file);
+    showProtocoloFotoPreview(currentProtocoloFoto);
+    if(status) status.textContent = 'Foto pronta — será salva junto com o protocolo.';
+  }catch(e){ console.log('foto:',e); if(status) status.textContent='Não consegui processar essa imagem. Tente outra foto.'; }
+  ev.target.value = ''; // permite escolher o mesmo arquivo de novo
+};
+
+window.removeProtocoloFoto = function(){
+  currentProtocoloFoto = null;
+  showProtocoloFotoPreview(null);
+  const status = document.getElementById('protocolo-foto-status');
+  if(status) status.textContent = 'Foto removida.';
+};
+
+
+function subscribeToProtocolos() {
+  const q = query(collection(db,'protocolos'), orderBy('createdAt','desc'));
+  protocolosUnsub = onSnapshot(q, snap => {
+    const items = snap.docs.map(d=>({id:d.id,...d.data()}));
+    window._protocolos = items;
+    renderProtocolos(items);
+  });
+  unsubs.push(protocolosUnsub);
+}
+
+// Protocolo(s) modelo — criados automaticamente na 1ª vez (admin), depois editáveis/deletáveis
+const DEFAULT_PROTOCOLOS = [
+  {
+    key: "implante",
+    category: "Cirurgia de Implante",
+    title: "Preparo da sala para cirurgia de implante",
+    steps: [
+      "Conferir no prontuário o planejamento cirúrgico: região a ser operada e marca, diâmetro e comprimento do implante previstos.",
+      "Confirmar que o termo de consentimento está assinado e que a tomografia/exames do paciente estão disponíveis na sala.",
+      "Higienizar e desinfetar todas as superfícies: bancada, mesa auxiliar, cadeira, refletor, alças e cuba, com desinfetante de superfície.",
+      "Higienizar as mãos e paramentar-se (touca e máscara) antes de montar a mesa cirúrgica.",
+      "Forrar a bancada e a mesa auxiliar com campo estéril.",
+      "Montar o motor de implante com o contra-ângulo redutor 20:1 e a peça de mão; conectar o equipo de irrigação.",
+      "Testar o motor: rotação, torque e irrigação com soro fisiológico estéril (de preferência gelado). Confirmar que a irrigação sai pela ponta.",
+      "Separar as brocas do sistema na sequência de uso (do menor para o maior diâmetro); conferir integridade e o indicador de esterilização de cada uma.",
+      "Separar o implante correto conforme o planejamento (marca, diâmetro e comprimento); conferir validade e embalagem lacrada. Abrir somente na hora do uso.",
+      "Separar o cicatrizador ou parafuso de cobertura correspondente ao implante.",
+      "Montar os instrumentais na ordem de uso: cabo de bisturi + lâmina, sindesmótomo/descolador, afastadores, cureta, porta-agulha, pinça e tesoura.",
+      "Preparar a anestesia: seringa carpule, agulha e tubetes do anestésico escolhido.",
+      "Separar sutura (fio conforme preferência do dentista), gazes estéreis, sugador cirúrgico e soro estéril para irrigação do campo.",
+      "Se o caso previr enxerto: separar o biomaterial/enxerto ósseo e a membrana, conferindo validade e lacre.",
+      "Separar EPIs e campos da equipe: aventais e luvas estéreis (conferir tamanhos), toucas, máscaras e óculos/face shield; e os campos do paciente.",
+      "Realizar a antissepsia do paciente (extra e intraoral com clorexidina) e posicionar os campos estéreis.",
+      "Conferência final em voz alta com o dentista (time-out): paciente certo, região certa, implante certo e todo o material estéril e completo."
+    ]
+  },
+  {
+    key: "restauracao",
+    category: "Dentística",
+    title: "Preparo e passo a passo da restauração em resina composta",
+    steps: [
+      "Conferir no prontuário o dente a ser restaurado e a cor da resina definida pelo dentista.",
+      "Higienizar e desinfetar as superfícies (bancada, cadeira, refletor) e forrar a bancada.",
+      "Separar EPIs para dentista e auxiliar: luvas, máscara e óculos de proteção.",
+      "Montar a bandeja clínica: espelho, sonda exploradora e pinça clínica.",
+      "Preparar a anestesia, se necessária: seringa carpule, agulha e tubete do anestésico.",
+      "Separar o isolamento: lençol de borracha, grampo, arco e perfurador (ou isolamento relativo com roletes de algodão e sugador, conforme o caso).",
+      "Separar as pontas de alta e baixa rotação e as brocas de remoção de cárie e de acabamento.",
+      "Separar os materiais na sequência de uso: ácido condicionador, adesivo, microbrush, a resina na cor escolhida e a espátula de inserção.",
+      "Para dentes posteriores/proximais, separar a matriz e a cunha.",
+      "Deixar o fotopolimerizador à mão, conferir a carga e a proteção ocular.",
+      "Separar o material de acabamento e polimento: tiras de lixa, discos, borrachas e pasta de polimento.",
+      "Separar o papel carbono para o ajuste da mordida.",
+      "Durante o procedimento: manter o campo seco com o sugador, entregar os materiais na ordem e fotopolimerizar quando solicitado.",
+      "Ao final: conferir com o dentista o ajuste oclusal e o polimento, orientar o paciente e registrar no prontuário."
+    ]
+  },
+  {
+    key: "profilaxia",
+    category: "Prevenção",
+    title: "Preparo e passo a passo da profilaxia (limpeza)",
+    steps: [
+      "Conferir no prontuário o histórico do paciente e se há indicação especial (uso de aparelho, gengivite, sensibilidade).",
+      "Higienizar e desinfetar as superfícies e forrar a bancada.",
+      "Separar EPIs para dentista e auxiliar, incluindo óculos e face shield, pela geração de aerossol.",
+      "Montar a bandeja: espelho, sonda e pinça clínica.",
+      "Separar o aparelho de ultrassom com a ponta adequada e conferir a irrigação de água.",
+      "Separar curetas e raspadores manuais, se forem usados.",
+      "Separar o kit de profilaxia: taça de borracha ou escova de Robinson para o contra-ângulo e a pasta profilática.",
+      "Separar fio dental, gaze e evidenciador de placa, se for utilizado.",
+      "Deixar a aspiração de alta potência e o sugador prontos, pelo aerossol.",
+      "Separar o flúor (gel ou verniz) e as moldeiras, se a aplicação estiver prevista.",
+      "Durante o procedimento: manter a aspiração ativa, controlar o campo e entregar os itens na sequência.",
+      "Ao final: aplicar o flúor se indicado, orientar a higiene do paciente e registrar no prontuário.",
+      "Após o atendimento: desinfetar as superfícies e encaminhar os instrumentais ao CME."
+    ]
+  },
+  {
+    key: "cimentacao",
+    category: "Prótese",
+    title: "Preparo e passo a passo da cimentação de peça protética",
+    steps: [
+      "Conferir no prontuário a peça a ser cimentada (coroa, onlay ou pino) e o tipo de cimento indicado pelo dentista.",
+      "Confirmar que a peça chegou do laboratório e conferir a prova antes: adaptação, cor e ponto de contato.",
+      "Higienizar e desinfetar as superfícies e forrar a bancada.",
+      "Separar EPIs para dentista e auxiliar.",
+      "Montar a bandeja: espelho, sonda e pinça clínica.",
+      "Separar o controle de umidade (roletes, sugador e afastador) — a cimentação exige campo bem seco.",
+      "Separar o material de limpeza do preparo e da peça (jato de bicarbonato, ácido ou álcool, conforme o protocolo do cimento).",
+      "Separar o cimento indicado e seus componentes: primer/adesivo, pastas base e catalisadora e ponteiras de mistura.",
+      "Separar espátula, placa de manipulação (se necessária) e microbrush.",
+      "Deixar o fotopolimerizador à mão para cimentos duais ou fotoativados e conferir o funcionamento.",
+      "Separar fio dental, sonda, explorador e gaze para a remoção dos excessos.",
+      "Separar o papel carbono para o ajuste da mordida após a cimentação.",
+      "Durante o procedimento: manter o campo seco, misturar o cimento no tempo certo, entregar a peça e ajudar a remover os excessos antes da presa final.",
+      "Ao final: conferir a oclusão, checar que não sobrou cimento (principalmente subgengival), orientar o paciente e registrar no prontuário."
+    ]
+  },
+  {
+    key: "esterilizacao",
+    category: "Esterilização (CME)",
+    title: "Reprocessamento e esterilização de instrumentais",
+    steps: [
+      "Paramentar-se para a área suja: luvas grossas de borracha, avental impermeável, óculos ou face shield e máscara.",
+      "Fazer a limpeza prévia logo após o uso, removendo os resíduos (sangue, dentina) antes que sequem no instrumental.",
+      "Realizar a descontaminação por imersão em detergente enzimático, respeitando a diluição e o tempo indicados pelo fabricante.",
+      "Fazer a limpeza: escovação manual sob a água com escova apropriada, ou em lavadora ultrassônica, conforme o disponível.",
+      "Enxaguar bem e secar completamente cada instrumental — umidade compromete a esterilização e causa corrosão.",
+      "Inspecionar cada peça: integridade, ausência de resíduos e funcionamento das articulações e pontas; separar o que precisa de manutenção ou descarte.",
+      "Organizar os instrumentais em kits por procedimento e embalar em papel grau cirúrgico.",
+      "Selar as embalagens na seladora e identificar cada pacote: conteúdo, data da esterilização e data de validade.",
+      "Colocar o indicador de esterilização (interno e/ou externo) em cada pacote.",
+      "Carregar a autoclave sem sobrecarregar, deixando espaço para o vapor circular entre os pacotes.",
+      "Selecionar o ciclo correto (temperatura e tempo conforme o material) e iniciar a esterilização.",
+      "Ao final do ciclo, conferir se os indicadores viraram de cor e se os pacotes saíram secos; pacotes úmidos ou rompidos devem ser reprocessados.",
+      "Registrar o controle do ciclo: data, número do ciclo, responsável e resultado dos indicadores (e do teste biológico, na periodicidade definida).",
+      "Armazenar os pacotes esterilizados em local fechado, limpo e seco, protegidos de poeira e umidade, respeitando a validade.",
+      "Higienizar e desinfetar a bancada e a área da CME ao final do processo."
+    ]
+  }
+];
+
+async function seedDefaultProtocolos() {
+  if(!currentProfile || currentProfile.role!=='admin') return;
+  const snap = await getDocs(collection(db,'protocolos'));
+  const seededKeys = new Set(snap.docs.map(d=>d.data().seedKey).filter(Boolean));
+  const seededTitles = new Set(snap.docs.map(d=>(d.data().title||'').trim()));
+  for(const p of DEFAULT_PROTOCOLOS){
+    if(seededKeys.has(p.key)) continue;            // já semeado antes
+    if(seededTitles.has(p.title.trim())) continue; // já existe pelo título (evita duplicar)
+    await addDoc(collection(db,'protocolos'), {
+      category:p.category, title:p.title, steps:p.steps,
+      seedKey:p.key, createdAt:serverTimestamp(), seeded:true
+    });
+  }
+}
+
+function renderProtocolos(items) {
+  const el = document.getElementById('protocolos-list');
+  if(!el) return;
+  const isAdmin = currentProfile && currentProfile.role==='admin';
+  // Sugere categorias já existentes para o admin reaproveitar
+  const dl = document.getElementById('protocolo-categorias-existentes');
+  if(dl){
+    const cats = [...new Set(items.map(p=>p.category).filter(Boolean))].sort();
+    dl.innerHTML = cats.map(c=>`<option value="${escapeHtml(c)}">`).join('');
+  }
+  if(!items.length){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Nenhum protocolo cadastrado ainda</div></div>';
+    return;
+  }
+  // Agrupa por categoria
+  const grupos = {};
+  items.forEach(p=>{ const c=p.category||'Sem categoria'; (grupos[c]=grupos[c]||[]).push(p); });
+  el.innerHTML = Object.keys(grupos).sort().map(cat=>{
+    const protos = grupos[cat].map(p=>{
+      const passos = Array.isArray(p.steps)?p.steps:[];
+      const fotoHtml = p.photo ? `<img src="${p.photo}" alt="Mesa pronta - ${escapeHtml(p.title||'')}" loading="lazy" style="max-width:100%;border-radius:10px;border:1px solid var(--gray-200,#eee);display:block;margin:12px 0 2px">` : '';
+      const passosHtml = `<div style="display:none" id="passos-${p.id}">${fotoHtml}<ol style="margin:12px 0 0 0;padding-left:22px">${passos.map(s=>`<li style="margin-bottom:7px;line-height:1.5">${escapeHtml(s)}</li>`).join('')}</ol></div>`;
+      const adminBtns = isAdmin
+        ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+             <button class="task-btn" onclick="editProtocolo('${p.id}')">✏️ Editar</button>
+             <button class="task-btn danger" onclick="deleteProtocolo('${p.id}')">✕ Excluir</button>
+           </div>`
+        : '';
+      return `<div style="border:1px solid var(--gray-200,#eee);border-radius:12px;padding:14px 16px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer" onclick="toggleProtocolo('${p.id}')">
+          <div style="font-weight:600">${escapeHtml(p.title||'(sem título)')}</div>
+          <span style="color:var(--gray-500);font-size:12.5px;white-space:nowrap">${p.photo?'📷 ':''}${passos.length} passo(s) ▾</span>
+        </div>
+        ${passosHtml}
+        ${adminBtns}
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:22px">
+      <div style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gold,#c9a96e);margin-bottom:10px">${escapeHtml(cat)}</div>
+      ${protos}
+    </div>`;
+  }).join('');
+}
+
+window.toggleProtocolo = function(id){
+  const el = document.getElementById('passos-'+id);
+  if(el) el.style.display = (el.style.display==='none') ? '' : 'none';
+};
+
+window.saveProtocolo = async function(){
+  if(!currentProfile || currentProfile.role!=='admin'){ showToast('Só o admin pode criar protocolos','warning'); return; }
+  const category = document.getElementById('protocolo-categoria').value.trim();
+  const title = document.getElementById('protocolo-titulo').value.trim();
+  const steps = document.getElementById('protocolo-passos').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!category){ showToast('Digite a categoria','warning'); return; }
+  if(!title){ showToast('Digite o título do protocolo','warning'); return; }
+  if(!steps.length){ showToast('Adicione ao menos um passo','warning'); return; }
+  try{
+    if(editingProtocoloId){
+      await updateDoc(doc(db,'protocolos',editingProtocoloId), { category, title, steps, photo: currentProtocoloFoto || null });
+      showToast('Protocolo atualizado!','success');
+    } else {
+      await addDoc(collection(db,'protocolos'), { category, title, steps, photo: currentProtocoloFoto || null, createdAt:serverTimestamp() });
+      showToast('Protocolo adicionado!','success');
+    }
+    cancelEditProtocolo();
+  } catch(e){ console.log('saveProtocolo:',e); showToast('Erro ao salvar protocolo','warning'); }
+};
+
+window.editProtocolo = function(id){
+  const p = (window._protocolos||[]).find(x=>x.id===id);
+  if(!p) return;
+  editingProtocoloId = id;
+  document.getElementById('protocolo-categoria').value = p.category||'';
+  document.getElementById('protocolo-titulo').value = p.title||'';
+  document.getElementById('protocolo-passos').value = (Array.isArray(p.steps)?p.steps:[]).join('\n');
+  currentProtocoloFoto = p.photo || null;
+  showProtocoloFotoPreview(currentProtocoloFoto);
+  const st=document.getElementById('protocolo-foto-status'); if(st) st.textContent = currentProtocoloFoto ? 'Foto atual carregada. Você pode trocar ou remover.' : '';
+  document.getElementById('protocolo-form-title').textContent = 'Editar Protocolo';
+  document.getElementById('protocolo-save-label').textContent = 'Salvar alterações';
+  document.getElementById('protocolo-cancel-btn').style.display = '';
+  const c=document.getElementById('protocolo-categoria'); if(c) c.scrollIntoView({behavior:'smooth',block:'center'});
+};
+
+window.cancelEditProtocolo = function(){
+  editingProtocoloId = null;
+  ['protocolo-categoria','protocolo-titulo','protocolo-passos'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  currentProtocoloFoto = null;
+  showProtocoloFotoPreview(null);
+  const st=document.getElementById('protocolo-foto-status'); if(st) st.textContent='';
+  document.getElementById('protocolo-form-title').textContent = 'Novo Protocolo';
+  document.getElementById('protocolo-save-label').textContent = 'Adicionar Protocolo';
+  document.getElementById('protocolo-cancel-btn').style.display = 'none';
+};
+
+window.deleteProtocolo = async function(id){
+  if(!currentProfile || currentProfile.role!=='admin') return;
+  if(!confirm('Excluir este protocolo? Esta ação não pode ser desfeita.')) return;
+  try{ await deleteDoc(doc(db,'protocolos',id)); showToast('Protocolo removido','info'); if(editingProtocoloId===id) cancelEditProtocolo(); }
+  catch(e){ console.log('deleteProtocolo:',e); }
+};
+
+// ── TREINAMENTO ───────────────────────────────────────────────
+let treinoUnsub = null;
+let editingTreinoId = null;
+
+const DEFAULT_TREINO = [
+  { key:'t1',  category:'Primeiros dias',              title:'Conhecer a organização dos armários e materiais da clínica' },
+  { key:'t2',  category:'Primeiros dias',              title:'Aprender o fluxo de recepção e acolhimento do paciente' },
+  { key:'t3',  category:'Primeiros dias',              title:'Saber usar o app: checklist, chame na sala, chat e materiais' },
+  { key:'t4',  category:'Biossegurança',               title:'Paramentação e uso correto dos EPIs' },
+  { key:'t5',  category:'Biossegurança',               title:'Reprocessamento e esterilização de instrumentais (CME)' },
+  { key:'t6',  category:'Assistência em procedimentos', title:'Preparo da sala para cirurgia de implante' },
+  { key:'t7',  category:'Assistência em procedimentos', title:'Assistência em restauração em resina composta' },
+  { key:'t8',  category:'Assistência em procedimentos', title:'Assistência em cimentação de peça protética' },
+  { key:'t9',  category:'Assistência em procedimentos', title:'Preparo e passo a passo da profilaxia' },
+  { key:'t10', category:'Rotina',                       title:'Fechamento e organização da sala ao fim do dia' }
+];
+
+async function seedDefaultTreino(){
+  if(!currentProfile || currentProfile.role!=='admin') return;
+  const snap = await getDocs(collection(db,'treinamento'));
+  const keys = new Set(snap.docs.map(d=>d.data().seedKey).filter(Boolean));
+  const titles = new Set(snap.docs.map(d=>(d.data().title||'').trim()));
+  for(const t of DEFAULT_TREINO){
+    if(keys.has(t.key)) continue;
+    if(titles.has(t.title.trim())) continue;
+    await addDoc(collection(db,'treinamento'), { category:t.category, title:t.title, concluido:false, seedKey:t.key, createdAt:serverTimestamp() });
+  }
+}
+
+function subscribeToTreino(){
+  const q = query(collection(db,'treinamento'), orderBy('createdAt','asc'));
+  treinoUnsub = onSnapshot(q, snap=>{
+    const items = snap.docs.map(d=>({id:d.id,...d.data()}));
+    window._treino = items;
+    renderTreino(items);
+  });
+  unsubs.push(treinoUnsub);
+}
+
+function renderTreino(items){
+  const isAdmin = currentProfile && currentProfile.role==='admin';
+  const total = items.length;
+  const done = items.filter(i=>i.concluido).length;
+  const pct = total ? Math.round(done*100/total) : 0;
+  const set=(id,v,prop='textContent')=>{ const e=document.getElementById(id); if(e) e[prop]=v; };
+  set('treino-progress-label', `${done} de ${total} concluídos`);
+  set('treino-progress-pct', pct+'%');
+  const bar=document.getElementById('treino-progress-bar'); if(bar) bar.style.width = pct+'%';
+  set('treino-progress-title', isAdmin ? 'Progresso da auxiliar no treinamento' : 'Seu progresso no treinamento');
+  set('treino-intro', isAdmin ? 'Crie os itens que a auxiliar precisa aprender — o progresso dela aparece na barra acima.' : 'Marque cada item como aprendido conforme for dominando. Seu progresso fica registrado.');
+  const dl=document.getElementById('treino-categorias-existentes');
+  if(dl){ const cats=[...new Set(items.map(i=>i.category).filter(Boolean))]; dl.innerHTML=cats.map(c=>`<option value="${escapeHtml(c)}">`).join(''); }
+  const el=document.getElementById('treino-list'); if(!el) return;
+  if(!items.length){ el.innerHTML='<div class="empty-state"><div class="empty-icon">🎓</div><div class="empty-text">Nenhum item de treinamento ainda</div></div>'; return; }
+  const order=[]; const grupos={};
+  items.forEach(i=>{ const c=i.category||'Geral'; if(!grupos[c]){grupos[c]=[];order.push(c);} grupos[c].push(i); });
+  el.innerHTML = order.map(cat=>{
+    const rows = grupos[cat].map(i=>{
+      const check = i.concluido ? '<span style="color:var(--green,#16a34a);font-weight:700">✓</span>' : '<span style="color:var(--gray-300,#ccc)">○</span>';
+      const adminBtns = isAdmin ? `<button class="task-btn" onclick="editTreino('${i.id}')">✏️</button><button class="task-btn danger" onclick="deleteTreino('${i.id}')">✕</button>` : '';
+      return `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--gray-200,#eee);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+        <button onclick="toggleTreino('${i.id}', ${i.concluido?'true':'false'})" title="Marcar como aprendido" style="background:none;border:none;font-size:18px;cursor:pointer;padding:0;line-height:1">${check}</button>
+        <div style="flex:1;${i.concluido?'text-decoration:line-through;color:var(--gray-500)':''}">${escapeHtml(i.title||'')}</div>
+        ${adminBtns}
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:20px"><div style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--gold,#c9a96e);margin-bottom:10px">${escapeHtml(cat)}</div>${rows}</div>`;
+  }).join('');
+}
+
+window.toggleTreino = async function(id, current){
+  try{ await updateDoc(doc(db,'treinamento',id), { concluido: !current }); }
+  catch(e){ console.log('toggleTreino:',e); showToast('Não consegui salvar. Tente de novo.','warning'); }
+};
+
+window.saveTreino = async function(){
+  if(!currentProfile || currentProfile.role!=='admin'){ showToast('Só o admin edita o treinamento','warning'); return; }
+  const category = document.getElementById('treino-categoria').value.trim();
+  const title = document.getElementById('treino-titulo').value.trim();
+  if(!title){ showToast('Digite o que a auxiliar deve aprender','warning'); return; }
+  try{
+    if(editingTreinoId){
+      await updateDoc(doc(db,'treinamento',editingTreinoId), { category: category||'Geral', title });
+      showToast('Item atualizado!','success');
+    } else {
+      await addDoc(collection(db,'treinamento'), { category: category||'Geral', title, concluido:false, createdAt:serverTimestamp() });
+      showToast('Item adicionado!','success');
+    }
+    cancelEditTreino();
+  }catch(e){ console.log('saveTreino:',e); showToast('Erro ao salvar','warning'); }
+};
+
+window.editTreino = function(id){
+  const i=(window._treino||[]).find(x=>x.id===id); if(!i) return;
+  editingTreinoId=id;
+  document.getElementById('treino-categoria').value=i.category||'';
+  document.getElementById('treino-titulo').value=i.title||'';
+  document.getElementById('treino-form-title').textContent='Editar item de treinamento';
+  document.getElementById('treino-save-label').textContent='Salvar alterações';
+  document.getElementById('treino-cancel-btn').style.display='';
+  const c=document.getElementById('treino-categoria'); if(c) c.scrollIntoView({behavior:'smooth',block:'center'});
+};
+
+window.cancelEditTreino = function(){
+  editingTreinoId=null;
+  ['treino-categoria','treino-titulo'].forEach(id=>{const e=document.getElementById(id); if(e) e.value='';});
+  document.getElementById('treino-form-title').textContent='Novo item de treinamento';
+  document.getElementById('treino-save-label').textContent='Adicionar item';
+  document.getElementById('treino-cancel-btn').style.display='none';
+};
+
+window.deleteTreino = async function(id){
+  if(!currentProfile || currentProfile.role!=='admin') return;
+  if(!confirm('Excluir este item do treinamento?')) return;
+  try{ await deleteDoc(doc(db,'treinamento',id)); showToast('Item removido','info'); if(editingTreinoId===id) cancelEditTreino(); }
+  catch(e){ console.log('deleteTreino:',e); }
+};
+
+window.resetTreinoProgresso = async function(){
+  if(!currentProfile || currentProfile.role!=='admin') return;
+  if(!confirm('Reiniciar o progresso? Todos os itens voltam para "não aprendido" — use ao entrar uma auxiliar nova.')) return;
+  try{
+    for(const i of (window._treino||[])){ if(i.concluido) await updateDoc(doc(db,'treinamento',i.id), { concluido:false }); }
+    showToast('Progresso reiniciado','info');
+  }catch(e){ console.log('resetTreino:',e); showToast('Erro ao reiniciar','warning'); }
+};
+
 // ── SETTINGS ──────────────────────────────────────────────────
 async function loadSettings() {
   try {
@@ -1633,6 +2182,7 @@ window.requestNotifPermission = function() {
         await OneSignal.Notifications.requestPermission();
         const granted = OneSignal.Notifications.permission;
         if(granted) {
+          try { if(currentProfile && currentProfile.role) await OneSignal.User.addTag('role', currentProfile.role); } catch(e){ console.log('addTag:',e); }
           showToast('✅ Notificações ativadas!','success');
           setTimeout(()=>new Notification('Secretária em Dia ✅',{body:'Alertas ativados!'}),500);
         } else {
